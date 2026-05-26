@@ -38,6 +38,7 @@ def write_ducklake(
         _set_partition_keys(con, table_name, partition_by)
         _add_column_comments(con, stata_data, table_name)
         _create_value_label_tables(con, stata_data)
+        _create_macros(con)
     finally:
         con.close()
 
@@ -93,3 +94,18 @@ def _create_value_label_tables(
             con.execute(
                 f"INSERT INTO {CATALOG_NAME}.{tbl} VALUES ({value}, '{escaped}')"
             )
+
+
+def _create_macros(con: duckdb.DuckDBPyConnection) -> None:
+    con.execute(f"""
+        CREATE OR REPLACE MACRO {CATALOG_NAME}.describe(tbl) AS TABLE
+        SELECT column_name, data_type, comment AS variable_label
+        FROM duckdb_columns()
+        WHERE database_name = '{CATALOG_NAME}' AND table_name = tbl
+    """)
+    con.execute(f"""
+        CREATE OR REPLACE MACRO {CATALOG_NAME}.decode(lbl, val) AS (
+            SELECT label FROM query_table('{CATALOG_NAME}.value_label_' || lbl)
+            WHERE value = val
+        )
+    """)

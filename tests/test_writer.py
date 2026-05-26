@@ -70,3 +70,40 @@ def test_no_partition(sample_dta: Path, tmp_path: Path) -> None:
     write_ducklake(stata_data, catalog, "workers")
     rows = _query(catalog, f"SELECT count(*) FROM {CATALOG_NAME}.workers")
     assert rows[0][0] == 3
+
+
+def test_describe_macro(ducklake_from_sample: Path) -> None:
+    rows = _query(
+        ducklake_from_sample,
+        f"SELECT * FROM {CATALOG_NAME}.describe('workers') ORDER BY column_name",
+    )
+    result = {r[0]: (r[1], r[2]) for r in rows}
+    assert result["id"] == ("INTEGER", "Worker ID")
+    assert result["wage"] == ("DOUBLE", "Annual wage (USD)")
+    assert result["gender"] == ("INTEGER", "Gender code")
+    assert result["name"][2] is None if "name" in result else True
+
+
+def test_decode_macro(ducklake_from_sample: Path) -> None:
+    rows = _query(
+        ducklake_from_sample,
+        f"SELECT {CATALOG_NAME}.decode('gender', 1)",
+    )
+    assert rows[0][0] == "Male"
+
+    rows = _query(
+        ducklake_from_sample,
+        f"SELECT {CATALOG_NAME}.decode('gender', 2)",
+    )
+    assert rows[0][0] == "Female"
+
+
+def test_decode_in_query(ducklake_from_sample: Path) -> None:
+    rows = _query(
+        ducklake_from_sample,
+        f"SELECT id, {CATALOG_NAME}.decode('gender', gender) AS gender_label "
+        f"FROM {CATALOG_NAME}.workers ORDER BY id",
+    )
+    assert rows[0] == (1, "Male")
+    assert rows[1] == (2, "Female")
+    assert rows[2] == (3, "Male")
