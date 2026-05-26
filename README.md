@@ -5,15 +5,7 @@ Convert Stata `.dta` files into partitioned Parquet files with a [DuckLake](http
 ## Install
 
 ```bash
-uv pip install git+https://github.com/codedthinking/stata2ducklake.git
-```
-
-Or from a local clone:
-
-```bash
-git clone https://github.com/codedthinking/stata2ducklake.git
-cd stata2ducklake
-uv pip install .
+uv tool install git+https://github.com/codedthinking/stata2ducklake.git
 ```
 
 Requires Python 3.11+.
@@ -48,18 +40,19 @@ The command creates a `.ducklake` metadata catalog and a `.ducklake.files/` dire
 duckdb -c "
   LOAD ducklake;
   ATTACH 'ducklake:catalog.ducklake' AS dl;
-  SELECT * FROM dl.data LIMIT 10;
+  USE dl;
+  SELECT * FROM data LIMIT 10;
 "
 ```
 
 ### Stata-like SQL macros
 
-The catalog includes two SQL macros for working with Stata metadata directly in DuckDB.
+The catalog includes two SQL macros for working with Stata metadata directly in DuckDB. Run `USE <catalog>` after attaching to make them available.
 
 **`describe('table_name')`** — list columns with their types and variable labels:
 
 ```sql
-SELECT * FROM dl.describe('workers');
+SELECT * FROM "describe"('workers');
 ```
 ```
 ┌─────────────┬───────────┬────────────────────┐
@@ -75,8 +68,8 @@ SELECT * FROM dl.describe('workers');
 **`decode('label_name', value)`** — look up a value label, usable in any expression:
 
 ```sql
-SELECT id, dl.decode('gender', gender) AS gender_label
-FROM dl.workers;
+SELECT id, decode('gender', gender) AS gender_label
+FROM workers;
 ```
 ```
 ┌────┬──────────────┐

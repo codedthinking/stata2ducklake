@@ -9,6 +9,11 @@ from stata2ducklake.reader import StataData
 CATALOG_NAME = "ducklake_catalog"
 
 
+def _qi(name: str) -> str:
+    """Quote a SQL identifier."""
+    return '"' + name.replace('"', '""') + '"'
+
+
 def write_ducklake(
     stata_data: StataData,
     ducklake_path: str | Path,
@@ -19,6 +24,8 @@ def write_ducklake(
 
     Creates the main data table, sets column comments from variable labels,
     creates value_label_<name> lookup tables, and optionally partitions.
+    SQL macros (describe, decode) are created with unqualified table
+    references so they work regardless of the attach alias.
 
     Args:
         stata_data: Data and metadata from read_dta.
@@ -33,6 +40,7 @@ def write_ducklake(
         con.execute(
             f"ATTACH 'ducklake:{ducklake_path}' AS {CATALOG_NAME}"
         )
+        con.execute(f"USE {CATALOG_NAME}")
 
         _create_data_table(con, stata_data, table_name)
         _set_partition_keys(con, table_name, partition_by)
@@ -50,7 +58,7 @@ def _create_data_table(
 ) -> None:
     con.register("_df", stata_data.data)
     con.execute(
-        f"CREATE TABLE {CATALOG_NAME}.{table_name} AS SELECT * FROM _df"
+        f"CREATE TABLE {_qi(table_name)} AS SELECT * FROM _df"
     )
     con.unregister("_df")
 
@@ -62,9 +70,9 @@ def _set_partition_keys(
 ) -> None:
     if not partition_by:
         return
-    cols = ", ".join(partition_by)
+    cols = ", ".join(_qi(c) for c in partition_by)
     con.execute(
-        f"ALTER TABLE {CATALOG_NAME}.{table_name} SET PARTITIONED BY ({cols})"
+        f"ALTER TABLE {_qi(table_name)} SET PARTITIONED BY ({cols})"
     )
 
 
@@ -76,7 +84,7 @@ def _add_column_comments(
     for col, label in stata_data.variable_labels.items():
         escaped = label.replace("'", "''")
         con.execute(
-            f"COMMENT ON COLUMN {CATALOG_NAME}.{table_name}.{col} IS '{escaped}'"
+            f"COMMENT ON COLUMN {_qi(table_name)}.{_qi(col)} IS '{escaped}'"
         )
 
 
@@ -85,27 +93,27 @@ def _create_value_label_tables(
     stata_data: StataData,
 ) -> None:
     for label_name, mapping in stata_data.value_labels.items():
-        tbl = f"value_label_{label_name}"
+        tbl = _qi(f"value_label_{label_name}")
         con.execute(
-            f"CREATE TABLE {CATALOG_NAME}.{tbl} (value INTEGER, label VARCHAR)"
+            f"CREATE TABLE {tbl} (value INTEGER, label VARCHAR)"
         )
         for value, label in mapping.items():
             escaped = label.replace("'", "''")
             con.execute(
-                f"INSERT INTO {CATALOG_NAME}.{tbl} VALUES ({value}, '{escaped}')"
+                f"INSERT INTO {tbl} VALUES ({value}, '{escaped}')"
             )
 
 
 def _create_macros(con: duckdb.DuckDBPyConnection) -> None:
-    con.execute(f"""
-        CREATE OR REPLACE MACRO {CATALOG_NAME}.describe(tbl) AS TABLE
+    con.execute("""
+        CREATE OR REPLACE MACRO "describe"(tbl) AS TABLE
         SELECT column_name, data_type, comment AS variable_label
         FROM duckdb_columns()
-        WHERE database_name = '{CATALOG_NAME}' AND table_name = tbl
+        WHERE database_name = current_catalog() AND table_name = tbl
     """)
-    con.execute(f"""
-        CREATE OR REPLACE MACRO {CATALOG_NAME}.decode(lbl, val) AS (
-            SELECT label FROM query_table('{CATALOG_NAME}.value_label_' || lbl)
+    con.execute("""
+        CREATE OR REPLACE MACRO decode(lbl, val) AS (
+            SELECT label FROM query_table('value_label_' || lbl)
             WHERE value = val
         )
     """)

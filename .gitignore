@@ -6,3 +6,4 @@ dist/
 *.ducklake
 *.ducklake.files/
 temp/
+*.dta
