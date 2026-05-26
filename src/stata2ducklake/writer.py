@@ -46,6 +46,7 @@ def write_ducklake(
         _set_partition_keys(con, table_name, partition_by)
         _add_column_comments(con, stata_data, table_name)
         _create_value_label_tables(con, stata_data)
+        _create_column_label_map(con, stata_data, table_name)
         _create_macros(con)
     finally:
         con.close()
@@ -104,12 +105,41 @@ def _create_value_label_tables(
             )
 
 
+def _create_column_label_map(
+    con: duckdb.DuckDBPyConnection,
+    stata_data: StataData,
+    table_name: str,
+) -> None:
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS _column_value_labels (
+            table_name VARCHAR,
+            column_name VARCHAR,
+            label_name VARCHAR
+        )
+    """)
+    for col, lbl in stata_data.column_to_label.items():
+        escaped_tbl = table_name.replace("'", "''")
+        escaped_col = col.replace("'", "''")
+        escaped_lbl = lbl.replace("'", "''")
+        con.execute(
+            f"INSERT INTO _column_value_labels VALUES ('{escaped_tbl}', '{escaped_col}', '{escaped_lbl}')"
+        )
+
+
 def _create_macros(con: duckdb.DuckDBPyConnection) -> None:
     con.execute("""
-        CREATE OR REPLACE MACRO "describe"(tbl) AS TABLE
-        SELECT column_name, data_type, comment AS variable_label
-        FROM duckdb_columns()
-        WHERE database_name = current_catalog() AND table_name = tbl
+        CREATE OR REPLACE MACRO labels(tbl) AS TABLE
+        SELECT
+            c.column_name,
+            c.data_type,
+            m.label_name AS value_label,
+            c.comment AS variable_label
+        FROM duckdb_columns() c
+        LEFT JOIN _column_value_labels m
+            ON m.table_name = tbl
+            AND m.column_name = c.column_name
+        WHERE c.database_name = current_catalog()
+            AND c.table_name = tbl
     """)
     con.execute("""
         CREATE OR REPLACE MACRO decode(lbl, val) AS (

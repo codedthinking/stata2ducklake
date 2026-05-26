@@ -78,15 +78,18 @@ def test_no_partition(sample_dta: Path, tmp_path: Path) -> None:
     assert rows[0][0] == 3
 
 
-def test_describe_macro(ducklake_from_sample: Path) -> None:
+def test_labels_macro(ducklake_from_sample: Path) -> None:
     rows = _query(
         ducklake_from_sample,
-        """SELECT * FROM "describe"('workers') ORDER BY column_name""",
+        "SELECT * FROM labels('workers') ORDER BY column_name",
     )
-    result = {r[0]: (r[1], r[2]) for r in rows}
-    assert result["id"] == ("INTEGER", "Worker ID")
-    assert result["wage"] == ("DOUBLE", "Annual wage (USD)")
-    assert result["gender"] == ("INTEGER", "Gender code")
+    # columns: column_name, data_type, value_label, variable_label
+    result = {r[0]: (r[1], r[2], r[3]) for r in rows}
+    assert result["id"] == ("INTEGER", None, "Worker ID")
+    assert result["wage"] == ("DOUBLE", None, "Annual wage (USD)")
+    assert result["gender"] == ("INTEGER", "gender", "Gender code")
+    assert result["year"][1] is None
+    assert result["year"][2] == "Survey year"
 
 
 def test_decode_macro(ducklake_from_sample: Path) -> None:
@@ -112,11 +115,12 @@ def test_macros_portable_across_alias(ducklake_from_sample: Path) -> None:
     """Macros work when catalog is attached with any alias, after USE."""
     rows = _query(
         ducklake_from_sample,
-        """SELECT * FROM "describe"('workers') ORDER BY column_name""",
+        "SELECT * FROM labels('workers') ORDER BY column_name",
         alias="dl",
     )
-    result = {r[0]: (r[1], r[2]) for r in rows}
-    assert result["id"] == ("INTEGER", "Worker ID")
+    result = {r[0]: (r[1], r[2], r[3]) for r in rows}
+    assert result["id"] == ("INTEGER", None, "Worker ID")
+    assert result["gender"] == ("INTEGER", "gender", "Gender code")
 
     rows = _query(
         ducklake_from_sample,

@@ -49,20 +49,20 @@ duckdb -c "
 
 The catalog includes two SQL macros for working with Stata metadata directly in DuckDB. Run `USE <catalog>` after attaching to make them available.
 
-**`describe('table_name')`** — list columns with their types and variable labels:
+**`labels('table_name')`** — list columns with their types, value labels, and variable labels (like Stata's `describe`):
 
 ```sql
-SELECT * FROM "describe"('workers');
+SELECT * FROM labels('workers');
 ```
 ```
-┌─────────────┬───────────┬────────────────────┐
-│ column_name │ data_type │  variable_label    │
-├─────────────┼───────────┼────────────────────┤
-│ id          │ INTEGER   │ Worker ID          │
-│ wage        │ DOUBLE    │ Annual wage (USD)  │
-│ gender      │ INTEGER   │ Gender code        │
-│ year        │ INTEGER   │ Survey year        │
-└─────────────┴───────────┴────────────────────┘
+┌─────────────┬───────────┬─────────────┬────────────────────┐
+│ column_name │ data_type │ value_label │  variable_label    │
+├─────────────┼───────────┼─────────────┼────────────────────┤
+│ id          │ INTEGER   │             │ Worker ID          │
+│ wage        │ DOUBLE    │             │ Annual wage (USD)  │
+│ gender      │ INTEGER   │ gender      │ Gender code        │
+│ year        │ INTEGER   │             │ Survey year        │
+└─────────────┴───────────┴─────────────┴────────────────────┘
 ```
 
 **`decode('label_name', value)`** — look up a value label, usable in any expression:
@@ -84,7 +84,7 @@ FROM workers;
 ### Metadata details
 
 - **Variable labels** are stored as column comments on each table.
-- **Value labels** are stored in separate lookup tables named `value_label_<name>`, each with `value` (integer) and `label` (text) columns.
+- **Value labels** are stored in separate lookup tables named `value_label_<name>`, each with `value` (integer) and `label` (text) columns. These tables are typically small enough that DuckLake inlines them directly in the metadata catalog rather than writing separate Parquet files — this is expected and they are fully queryable.
 
 ## License
 
