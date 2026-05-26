@@ -80,3 +80,27 @@ def test_value_label_output(sample_dta: Path, tmp_path: Path) -> None:
     catalog = tmp_path / "out.ducklake"
     result = CliRunner().invoke(main, [str(sample_dta), str(catalog)])
     assert "1 value label table(s)" in result.output
+
+
+def test_invalid_partition_column(sample_dta: Path, tmp_path: Path) -> None:
+    catalog = tmp_path / "out.ducklake"
+    result = CliRunner().invoke(
+        main, [str(sample_dta), str(catalog), "--partition-by", "nonexistent"]
+    )
+    assert result.exit_code != 0
+    assert "nonexistent" in result.output
+
+
+def test_quiet_flag(sample_dta: Path, tmp_path: Path) -> None:
+    catalog = tmp_path / "out.ducklake"
+    result = CliRunner().invoke(main, [str(sample_dta), str(catalog), "-q"])
+    assert result.exit_code == 0
+    assert result.output == ""
+
+
+def test_verbose_flag(sample_dta: Path, tmp_path: Path) -> None:
+    catalog = tmp_path / "out.ducklake"
+    result = CliRunner().invoke(main, [str(sample_dta), str(catalog), "-v"])
+    assert result.exit_code == 0
+    assert "Worker ID" in result.output
+    assert "value_label_gender: 2 entries" in result.output
