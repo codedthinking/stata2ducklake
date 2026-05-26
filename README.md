@@ -89,3 +89,7 @@ FROM workers;
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Trademark notice
+
+Stata is a registered trademark of [StataCorp LLC](https://www.stata.com/). Coded Thinking OÜ is not affiliated with StataCorp LLC, and this software has not been reviewed or endorsed by StataCorp LLC.
