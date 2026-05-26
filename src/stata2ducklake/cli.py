@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 
 from stata2ducklake.reader import read_dta
-from stata2ducklake.writer import write_ducklake
+from stata2ducklake.writer import table_exists, write_ducklake
 
 
 @click.command()
@@ -19,6 +19,7 @@ from stata2ducklake.writer import write_ducklake
 )
 @click.option("-v", "--verbose", is_flag=True, help="Show detailed output.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress all output.")
+@click.option("-f", "--force", is_flag=True, help="Overwrite existing tables without prompting.")
 def main(
     dta_paths: tuple[str, ...],
     ducklake_path: str,
@@ -26,6 +27,7 @@ def main(
     table_name: str | None,
     verbose: bool,
     quiet: bool,
+    force: bool,
 ) -> None:
     """Convert Stata .dta files into partitioned Parquet with DuckLake metadata."""
     if table_name and len(dta_paths) > 1:
@@ -35,6 +37,20 @@ def main(
         path = Path(dta_path)
         name = table_name or path.stem
 
+        exists = table_exists(ducklake_path, name)
+        if exists:
+            if force:
+                pass
+            elif quiet:
+                raise click.ClickException(
+                    f"Table '{name}' already exists in {ducklake_path}. Use --force to overwrite."
+                )
+            elif not click.confirm(
+                f"Table '{name}' already exists in {ducklake_path}. Overwrite?"
+            ):
+                click.echo(f"Skipping {path.name}.")
+                continue
+
         stata_data = read_dta(path)
 
         invalid_cols = set(partition_by) - set(stata_data.data.columns)
@@ -43,7 +59,7 @@ def main(
                 f"Partition column(s) not found in {path.name}: {', '.join(sorted(invalid_cols))}"
             )
 
-        write_ducklake(stata_data, ducklake_path, name, partition_by)
+        write_ducklake(stata_data, ducklake_path, name, partition_by, force=exists)
 
         if quiet:
             continue

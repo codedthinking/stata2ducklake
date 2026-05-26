@@ -104,3 +104,37 @@ def test_verbose_flag(sample_dta: Path, tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Worker ID" in result.output
     assert "value_label_gender: 2 entries" in result.output
+
+
+def test_overwrite_without_force_prompts(sample_dta: Path, tmp_path: Path) -> None:
+    catalog = tmp_path / "out.ducklake"
+    CliRunner().invoke(main, [str(sample_dta), str(catalog)])
+    # Run again without --force, answer "n"
+    result = CliRunner().invoke(main, [str(sample_dta), str(catalog)], input="n\n")
+    assert result.exit_code == 0
+    assert "already exists" in result.output
+    assert "Skipping" in result.output
+
+
+def test_overwrite_with_force(sample_dta: Path, tmp_path: Path) -> None:
+    catalog = tmp_path / "out.ducklake"
+    CliRunner().invoke(main, [str(sample_dta), str(catalog)])
+    result = CliRunner().invoke(main, [str(sample_dta), str(catalog), "--force"])
+    assert result.exit_code == 0
+    assert "sample.dta -> sample:" in result.output
+
+
+def test_overwrite_confirm_yes(sample_dta: Path, tmp_path: Path) -> None:
+    catalog = tmp_path / "out.ducklake"
+    CliRunner().invoke(main, [str(sample_dta), str(catalog)])
+    result = CliRunner().invoke(main, [str(sample_dta), str(catalog)], input="y\n")
+    assert result.exit_code == 0
+    assert "sample.dta -> sample:" in result.output
+
+
+def test_overwrite_quiet_errors(sample_dta: Path, tmp_path: Path) -> None:
+    catalog = tmp_path / "out.ducklake"
+    CliRunner().invoke(main, [str(sample_dta), str(catalog)])
+    result = CliRunner().invoke(main, [str(sample_dta), str(catalog), "-q"])
+    assert result.exit_code != 0
+    assert "already exists" in result.output

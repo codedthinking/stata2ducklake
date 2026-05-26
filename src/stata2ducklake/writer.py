@@ -14,17 +14,38 @@ def _qi(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def table_exists(ducklake_path: str | Path, table_name: str) -> bool:
+    """Check if a table already exists in the DuckLake catalog."""
+    con = duckdb.connect()
+    try:
+        con.execute("INSTALL ducklake")
+        con.execute("LOAD ducklake")
+        con.execute(
+            f"ATTACH 'ducklake:{ducklake_path}' AS {CATALOG_NAME}"
+        )
+        rows = con.execute(
+            f"SELECT count(*) FROM duckdb_tables() "
+            f"WHERE database_name = '{CATALOG_NAME}' AND table_name = '{table_name}'"
+        ).fetchone()
+        return rows[0] > 0
+    except Exception:
+        return False
+    finally:
+        con.close()
+
+
 def write_ducklake(
     stata_data: StataData,
     ducklake_path: str | Path,
     table_name: str,
     partition_by: tuple[str, ...] = (),
+    force: bool = False,
 ) -> None:
     """Write StataData into a DuckLake catalog.
 
     Creates the main data table, sets column comments from variable labels,
     creates value_label_<name> lookup tables, and optionally partitions.
-    SQL macros (describe, decode) are created with unqualified table
+    SQL macros (labels, decode) are created with unqualified table
     references so they work regardless of the attach alias.
 
     Args:
@@ -32,6 +53,7 @@ def write_ducklake(
         ducklake_path: Path to the DuckLake metadata file.
         table_name: Name for the target table.
         partition_by: Column names to partition by.
+        force: If True, drop existing table before creating.
     """
     con = duckdb.connect()
     try:
@@ -42,6 +64,16 @@ def write_ducklake(
         )
         con.execute(f"USE {CATALOG_NAME}")
 
+        if force:
+            con.execute(f"DROP TABLE IF EXISTS {_qi(table_name)}")
+            for label_name in stata_data.value_labels:
+                con.execute(f"DROP TABLE IF EXISTS {_qi(f'value_label_{label_name}')}")
+            if _meta_table_exists(con):
+                con.execute(
+                    "DELETE FROM _column_value_labels WHERE table_name = $1",
+                    [table_name],
+                )
+
         _create_data_table(con, stata_data, table_name)
         _set_partition_keys(con, table_name, partition_by)
         _add_column_comments(con, stata_data, table_name)
@@ -50,6 +82,14 @@ def write_ducklake(
         _create_macros(con)
     finally:
         con.close()
+
+
+def _meta_table_exists(con: duckdb.DuckDBPyConnection) -> bool:
+    rows = con.execute(
+        "SELECT count(*) FROM duckdb_tables() "
+        f"WHERE database_name = '{CATALOG_NAME}' AND table_name = '_column_value_labels'"
+    ).fetchone()
+    return rows[0] > 0
 
 
 def _create_data_table(
