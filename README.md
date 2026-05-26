@@ -52,14 +52,46 @@ duckdb -c "
 "
 ```
 
-### Metadata preserved from Stata
+### Stata-like SQL macros
 
-- **Variable labels** are stored as column comments. Query them with:
-  ```sql
-  SELECT column_name, comment FROM duckdb_columns()
-  WHERE database_name = 'dl';
-  ```
-- **Value labels** are stored in separate lookup tables named `value_label_<name>`, each with `value` (integer) and `label` (text) columns. For example, if the `.dta` file has a value label `gender` mapping `1 → Male, 2 → Female`, the catalog will contain a table `value_label_gender`.
+The catalog includes two SQL macros for working with Stata metadata directly in DuckDB.
+
+**`describe('table_name')`** — list columns with their types and variable labels:
+
+```sql
+SELECT * FROM dl.describe('workers');
+```
+```
+┌─────────────┬───────────┬────────────────────┐
+│ column_name │ data_type │  variable_label    │
+├─────────────┼───────────┼────────────────────┤
+│ id          │ INTEGER   │ Worker ID          │
+│ wage        │ DOUBLE    │ Annual wage (USD)  │
+│ gender      │ INTEGER   │ Gender code        │
+│ year        │ INTEGER   │ Survey year        │
+└─────────────┴───────────┴────────────────────┘
+```
+
+**`decode('label_name', value)`** — look up a value label, usable in any expression:
+
+```sql
+SELECT id, dl.decode('gender', gender) AS gender_label
+FROM dl.workers;
+```
+```
+┌────┬──────────────┐
+│ id │ gender_label │
+├────┼──────────────┤
+│  1 │ Male         │
+│  2 │ Female       │
+│  3 │ Male         │
+└────┴──────────────┘
+```
+
+### Metadata details
+
+- **Variable labels** are stored as column comments on each table.
+- **Value labels** are stored in separate lookup tables named `value_label_<name>`, each with `value` (integer) and `label` (text) columns.
 
 ## License
 
