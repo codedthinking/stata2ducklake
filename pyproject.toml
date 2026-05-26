@@ -11,6 +11,9 @@ dependencies = [
     "click>=8.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
 [project.scripts]
 stata2ducklake = "stata2ducklake.cli:main"
 
