@@ -37,12 +37,20 @@ stata2ducklake data.dta catalog.ducklake -q
 The command creates a `.ducklake` metadata catalog and a `.ducklake.files/` directory containing Parquet data files. You can query the result with DuckDB:
 
 ```bash
-duckdb -c "
-  LOAD ducklake;
-  ATTACH 'ducklake:catalog.ducklake' AS dl;
-  USE dl;
-  SELECT * FROM data LIMIT 10;
-"
+duckdb ducklake:catalog.ducklake
+```
+
+```sql
+FROM labels('data');
+SELECT * FROM data LIMIT 10;
+```
+
+Or attach it from an existing DuckDB session:
+
+```sql
+LOAD ducklake;
+ATTACH 'ducklake:catalog.ducklake' AS dl;
+USE dl;
 ```
 
 ### Stata-like SQL macros
