@@ -74,8 +74,7 @@ def write_ducklake(
                     [table_name],
                 )
 
-        _create_data_table(con, stata_data, table_name)
-        _set_partition_keys(con, table_name, partition_by)
+        _create_data_table(con, stata_data, table_name, partition_by)
         _add_column_comments(con, stata_data, table_name)
         _create_value_label_tables(con, stata_data)
         _create_column_label_map(con, stata_data, table_name)
@@ -96,25 +95,22 @@ def _create_data_table(
     con: duckdb.DuckDBPyConnection,
     stata_data: StataData,
     table_name: str,
+    partition_by: tuple[str, ...] = (),
 ) -> None:
     con.register("_df", stata_data.data)
+    # Create empty table with schema, set partitioning, then insert
     con.execute(
-        f"CREATE TABLE {_qi(table_name)} AS SELECT * FROM _df"
+        f"CREATE TABLE {_qi(table_name)} AS SELECT * FROM _df LIMIT 0"
+    )
+    if partition_by:
+        cols = ", ".join(_qi(c) for c in partition_by)
+        con.execute(
+            f"ALTER TABLE {_qi(table_name)} SET PARTITIONED BY ({cols})"
+        )
+    con.execute(
+        f"INSERT INTO {_qi(table_name)} SELECT * FROM _df"
     )
     con.unregister("_df")
-
-
-def _set_partition_keys(
-    con: duckdb.DuckDBPyConnection,
-    table_name: str,
-    partition_by: tuple[str, ...],
-) -> None:
-    if not partition_by:
-        return
-    cols = ", ".join(_qi(c) for c in partition_by)
-    con.execute(
-        f"ALTER TABLE {_qi(table_name)} SET PARTITIONED BY ({cols})"
-    )
 
 
 def _add_column_comments(
